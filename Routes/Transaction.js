@@ -1,6 +1,6 @@
 const express = require("express")
-const Wallet = require("../Model/Account")
-const Transfer = require("../Model/Transaction")
+const Wallet = require("../db/Model/Account")
+const Transfer = require("../db/Model/Transaction")
 
 
 const router = express.Router()
@@ -52,7 +52,7 @@ router.post("/deposit", async(req, res) => {
                     new: true
                     })
                         .then(()=>{
-                        res.json(transaction)
+                        res.json("Deposit Successful")
                         }).catch(err => {
                         res.json(err)
                     })
@@ -110,7 +110,7 @@ router.post("/withdrawal", (req, res) => {
                                 new: true
                             })
                                 .then(() => {
-                                    res.json(transaction)
+                                    res.json("Withdrawal Successful")
                                 }).catch(err => {
                                     res.json(err)
                                 })
@@ -274,9 +274,10 @@ router.post("/refund", (req, res) => {
         .catch (() => {
              res.json({message:"Account Not Found"})       
         })
-                } else {
-                res.json({message : "Account Number is not valid"})  
-            }
+                 } 
+        else {
+            res.json({message : "Account Number is not valid"})  
+        }
         }) 
         .catch (() => {
              res.json({message:"Invalid TransactionID"})       

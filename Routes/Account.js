@@ -1,6 +1,5 @@
 const express = require("express")
-const Wallet = require("../Model/Account")
-
+const Wallet = require("../db/Model/Account")
 const router = express.Router()
 
 router.get("/balance", async(req, res) => {
@@ -8,13 +7,17 @@ router.get("/balance", async(req, res) => {
     const formatToCurrency = (amount) => {
     return (amount).toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,'); 
     }
-    const { accountnumber } = req.body
-    const wallet =  await Wallet.find({ AccountNumber: accountnumber }).select('AccountBalance')
-    res.json({ Message: `Your Current Balance is ${formatToCurrency(wallet[0].AccountBalance)}` })  
+    const { accountNumber } = req.body
+    if (!accountNumber) {
+        return res.json({message : 'AccountNumber MISSING!!' })
+    }
+        const wallet = await Wallet.find({ AccountNumber: accountNumber }).select('AccountBalance')
+        console.log(wallet)
+        res.json({ Message: `Your Current Balance is ${formatToCurrency(wallet[0].AccountBalance)}` })  
+
         
     }
     catch (err) {
-        console.log(err)
         res.json({message : "Invalid Account Number"})
     }
 })
@@ -31,7 +34,9 @@ router.post("/create", async (req, res) => {
             return result;
         }
         const { name, email, phone } = req.body
-
+        if (!name || !email) {
+            return res.json({message : 'Email or Name is MISSING!!' })
+        }
         
         const wallet = new Wallet({
             AccountNumber: makeAccount(6),
@@ -44,26 +49,34 @@ router.post("/create", async (req, res) => {
         res.send(Walletitem)
     }      
     catch (err) {
-        res.json({message : err})
+        res.json({message : "Email Already In Use , TRY ANOTHER EMAIL ADDRESS"})
     }
     
 })
 
-router.patch("/update", async(req, res) => {
+router.patch("/update", async (req, res) => {
+    
     try {
 
     const { accountNumber, name, email } = req.body
+      if (!accountNumber) {
+            return res.json({message : 'AccountNumber MISSING!!' })
+        }
     const filter = { AccountNumber: accountNumber };
     const updateItem = {
         Name: name,
         EmailAddress:email
     };
 
-    await Wallet.findOneAndUpdate(filter, updateItem, { new: true })
-        res.json({ message: `Account Updated` })
+        const response = await Wallet.findOneAndUpdate(filter, updateItem, { new: true })
+         if (response === null) {
+            res.json({message:"Account not found"})
+         } else {
+              res.json({ message: `Account Updated` })
+        }
     }
     catch(err) {
-        res.json({message:err})
+        res.json({message:"Account not found"})
     }
 })
 
@@ -71,32 +84,48 @@ router.patch("/update", async(req, res) => {
 router.patch("/disable", async (req, res) => {
     try {
     const { accountNumber } = req.body
-
+ if (!accountNumber) {
+            return res.json({message : 'AccountNumber MISSING!!' })
+        }
     const filter = { AccountNumber: accountNumber };
     const updateItem = {AccountStatus: "Disabled",  };
 
-    const disabled = await Wallet.findOneAndUpdate(filter, updateItem, { new: true })
-    res.json({ message: `Account ${disabled.AccountStatus}` })
+        const response = await Wallet.findOneAndUpdate(filter, updateItem, { new: true })
+         if (response === null) {
+            res.json({message:"Account not found"})
+         } else {
+              res.json({ message: `Account Disabled` })
+        }
+   
     
     }
     
     catch(err)  {
-        res.json({message:err})
+        res.json({message:"Account not found"})
     }
 })
 
-router.patch("/activate", async(req, res) => {
+router.patch("/activate", async (req, res) => {
     try {
     const { accountNumber } = req.body
-
+ if (!accountNumber) {
+            return res.json({message : 'AccountNumber Is MISSING!!' })
+        }
     const filter = { AccountNumber: accountNumber };
-    const updateItem = {AccountStatus: "Active"};
+    const updateItem = {AccountStatus: "Active",  };
 
-   const activated =  await Wallet.findOneAndUpdate(filter, updateItem ,{new: true})
-    res.json({ message: `Account ${activated.AccountStatus}` })
-    }
-    catch(err) {
-        res.json({message:err})
+        const response = await Wallet.findOneAndUpdate(filter, updateItem, { new: true })
+        if (response === null) {
+            res.json({message:"Account not found"})
+        } else {
+             res.json({ message: "Account Activated" })
+        }
+   
+    
+        }
+    
+    catch(err)  {
+        res.json({message:"Account not found"})
     }
 })
 

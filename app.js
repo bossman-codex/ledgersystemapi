@@ -9,11 +9,30 @@ require("dotenv/config")
 const app = express()
 app.use(BodyParser.json())
 
+app.get("/", (req, res) => {
+    res.send("Welcome to Wallet")
+})
+
+app.use("/Account", Account)
+
+app.use("/Transaction" , Transaction)
+
+
+app.on('ready', function() { 
+    app.listen(4000, function(){ 
+        console.log("localhost running at 4000"); 
+    }); 
+});
 
 mongoose.connect(process.env.DB, {
     useNewUrlParser: true,
     useUnifiedTopology:true
 })
+
+mongoose.connection.once('open', function() { 
+    // All OK - fire (emit) a ready event. 
+    app.emit('ready'); 
+}); 
 
 mongoose.connection.on('connected', () => {
     console.log("mongoose connected")
@@ -30,14 +49,5 @@ mongoose.connection.on('disconnected', function () {
 });
 
 
-app.get("/", (req, res) => {
-    res.send("Welcome to Wallet")
-})
 
-app.use("/Account", Account)
-
-app.use("/Transaction" , Transaction)
-
-
-
-app.listen(4000 , ()=>console.log("listening on port 4000"))
+module.exports = app
