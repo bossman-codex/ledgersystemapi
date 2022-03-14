@@ -19,7 +19,7 @@ app.use("/Transaction" , Transaction)
 
 
 app.on('ready', function() { 
-    app.listen(4000, function(){ 
+    app.listen(process.env.PORT||4000, function(){ 
         console.log("localhost running at 4000"); 
     }); 
 });
