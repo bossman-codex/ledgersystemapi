@@ -1,8 +1,7 @@
 const express = require("express")
 const Wallet = require("../db/Model/Account")
 const Transfer = require("../db/Model/Transaction")
-
-
+const mongoose =require("mongoose")
 const router = express.Router()
 
 router.get("/all", async (req, res) => {
@@ -10,278 +9,256 @@ router.get("/all", async (req, res) => {
     const { accountnumber } = req.body
     const query = {$or:[{AccountNumberSender:{$regex: accountnumber}},{AccountNumberReceiver:{$regex: accountnumber}}]}
     const allItem = await Transfer.find(query)
-       res.json(allItem)
+       res.status(200).json(allItem)
     }
     catch (err) {
-        res.send(err)
+        res.status(400).send(err)
     }  
 })
 
-router.post("/deposit", async(req, res) => {
-    function makeTransactionId(length) {
-        var result           = '';
-        var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+router.post("/deposit", async (req, res) => {
+    try {
+        function makeTransactionId(length) {
+        var result = '';
+        var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         var charactersLength = characters.length;
-        for ( var i = 0; i < length; i++ ) {
-           result += characters.charAt(Math.floor(Math.random() * charactersLength));
+        for (var i = 0; i < length; i++) {
+            result += characters.charAt(Math.floor(Math.random() * charactersLength));
         }
         return result;
-     }
+    }
     const { accountnumber, name, amount } = req.body
-    Wallet.find({ AccountNumber: accountnumber })
-        .then((wallet) => {
-            const walletItem = wallet[0]
-            const money = parseInt(amount)
-            if (walletItem.AccountNumber == accountnumber && walletItem.AccountStatus == "Active") {
-                const transaction = new Transfer({
-                TransactionId: makeTransactionId(10),   
+    const wallet = await Wallet.find({ AccountNumber: accountnumber })
+    const walletItem = wallet[0]
+    const money = parseInt(amount)
+        
+    if (walletItem.AccountNumber == accountnumber && walletItem.AccountStatus == "Active") {
+        const session = await mongoose.startSession();
+          await session.withTransaction(async () => {
+            const transact = new Transfer({
+                TransactionId: makeTransactionId(10),
                 AccountNumberSender: accountnumber,
                 AccountNumberReceiver: accountnumber,
                 Name: name,
-                Amount:money,
+                Amount: money,
                 AccountBalance: walletItem.AccountBalance + money,
-                Description : "Credit"
-                })    
-                transaction.save()
-                .then(transaction => {
-                    const filter = { AccountNumber: accountnumber };
-                    const updateItem = {
-                    AccountBalance: transaction.AccountBalance
-                    };
-                    Wallet.findOneAndUpdate(filter, updateItem ,{
-                    new: true
-                    })
-                        .then(()=>{
-                        res.json("Deposit Successful")
-                        }).catch(err => {
-                        res.json(err)
-                    })
-                    })
-                    .catch(err => {
-                    res.json(err)
-                })
-            }
-            else {
-                res.json({
-                     message: "Account Deactivated",
-                }) 
-            }
-        }) 
-        .catch ((err) => {
-             res.json({message:"invalid AccountNumber"})       
+                Description: "Credit"
+            })
+            const transaction = await transact.save({ session })
+            const filter = { AccountNumber: accountnumber };
+            const updateItem = { AccountBalance: transaction.AccountBalance };
+            const result = await Wallet.findOneAndUpdate(filter, updateItem, { new: true, session })
+              res.status(200).json({
+                  message: "Deposit Successful",
+                  transaction:result
+              })
+              
+
+
+            await session.commitTransaction();
+        });
+        await session.endSession();
+             
+        
+    } else {
+        res.status(400).json({
+            message: "Account Deactivated",
         })
+    }
+}
+      catch (err) {
+            res.status(400).json("error from beginning")
+        }
 })
 
-router.post("/withdrawal", (req, res) => {
+router.post("/withdrawal", async(req, res) => {
     function makeTransactionId(length) {
-        var result           = '';
-        var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-        var charactersLength = characters.length;
-        for ( var i = 0; i < length; i++ ) {
+        let result           = '';
+        let characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let charactersLength = characters.length;
+        for ( let i = 0; i < length; i++ ) {
            result += characters.charAt(Math.floor(Math.random() * charactersLength));
         }
         return result;
      }
     const { accountnumber, name, amount } = req.body
-    Wallet.find({ AccountNumber: accountnumber })
-        .then((wallet) => {
-            const walletItem = wallet[0]
-            const money = parseInt(amount)
-            if (money <= walletItem.AccountBalance) {
-
-
-                if (walletItem.AccountNumber == accountnumber && walletItem.AccountStatus == "Active") {
-                    const transaction = new Transfer({
-                        TransactionId: makeTransactionId(10),
-                        AccountNumberSender: accountnumber,
-                        AccountNumberReceiver: accountnumber,
-                        Name: name,
-                        Amount: money,
-                        AccountBalance: walletItem.AccountBalance - money  ,
-                        Description: "Debit"
-                    })
-                    transaction.save()
-                        .then(transaction => {
-                            const filter = { AccountNumber: accountnumber };
-                            const updateItem = {
-                                AccountBalance: transaction.AccountBalance
-                            };
-                            Wallet.findOneAndUpdate(filter, updateItem, {
-                                new: true
-                            })
-                                .then(() => {
-                                    res.json("Withdrawal Successful")
-                                }).catch(err => {
-                                    res.json(err)
-                                })
+    try {
+        const wallet = await Wallet.find({ AccountNumber: accountnumber })
+        const walletItem = wallet[0]
+        const money = parseInt(amount)
+        if (money <= walletItem.AccountBalance) {
+            if (walletItem.AccountNumber == accountnumber && walletItem.AccountStatus == "Active") {
+                try {
+                    const session = await mongoose.startSession();
+                    await session.withTransaction(async () => {
+                        const transaction = new Transfer({
+                            TransactionId: makeTransactionId(10),
+                            AccountNumberSender: accountnumber,
+                            AccountNumberReceiver: accountnumber,
+                            Name: name,
+                            Amount: money,
+                            AccountBalance: walletItem.AccountBalance - money,
+                            Description: "Debit"
                         })
-                        .catch(err => {
-                            res.json(err)
+                        const transact = transaction.save({ session })
+                        const filter = { AccountNumber: accountnumber };
+                        const updateItem = { AccountBalance: transact.AccountBalance };
+                        const withdraw = await Wallet.findOneAndUpdate(filter, updateItem, { new: true, session })
+                        res.status(200).json({
+                            message: "Withdrawal Successful",
+                            transaction: withdraw
                         })
-                }
-                else {
-                    res.json({
-                        message: "Account Deactivated", 
+                        await session.commitTransaction();
                     })
+                    await session.endSession();
                 }
-
-
-
-            } else {
-                    res.send("Insuffient Fund")
-                }     
-        }) 
-        .catch ((err) => {
-             res.json({message:"invalid AccountNumber"})       
-        })
+                catch (err) {
+                    res.status(400).json(err)
+                }
+            }
+            else { res.status(400).json({ message: "Account Deactivated", }) }
+        }
+        else { res.status(400).send("Insuffient Fund") }
+    }
+        catch(err) {
+             res.status(400).json({message:"invalid AccountNumber"})       
+        }
 })
 
-router.post("/transfer", (req, res) => {
+
+router.post("/transfer", async (req, res) => {
+    try{
     function makeTransactionId(length) {
-        var result           = '';
-        var characters       = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        var result = '';
+        var characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
         var charactersLength = characters.length;
-        for ( var i = 0; i < length; i++ ) {
-           result += characters.charAt(Math.floor(Math.random() * charactersLength));
+        for (var i = 0; i < length; i++) {
+            result += characters.charAt(Math.floor(Math.random() * charactersLength));
         }
         return result;
-     }
+    }
     const { accountnumber, receiveraccountnumber, name, amount } = req.body
-   
-    Wallet.find({ "AccountNumber" : { $in : [ accountnumber, receiveraccountnumber ] } })
-        .then((wallet) => {
-            console.log(wallet)
-            if (wallet.length === 2) {
-                 const walletItem = wallet[0]
-         const receiverWallet = wallet[1]
-         const money = parseInt(amount)
-            if (money <= walletItem.AccountBalance) {
-                 
 
-                if (walletItem.AccountNumber == accountnumber && walletItem.AccountStatus == "Active") {
-                    const transaction = new Transfer({
-                        TransactionId: makeTransactionId(10),
-                        AccountNumberSender: accountnumber,
-                        AccountNumberReceiver: receiveraccountnumber,
-                        Name: name,
-                        Amount: money,
-                        AccountBalance: walletItem.AccountBalance - money  ,
-                        Description: "Debit"
-                    })
-                    transaction.save()
-                        .then(transaction => {
-                            const filter = { AccountNumber: accountnumber };
-                            const updateItem = {
-                                AccountBalance: transaction.AccountBalance
-                            };
-                            Wallet.findOneAndUpdate(filter, updateItem, {
-                                new: true
-                            })
-                                .then(() => {
-                                    const filter = { AccountNumber: receiveraccountnumber };
-                                    const updateItem = {
-                                    AccountBalance: receiverWallet.AccountBalance + money
-                                    };
-                                    Wallet.findOneAndUpdate(filter, updateItem, {
-                                    new: true
-                                    })
-                                    .then(() => {
-                                         res.json(transaction)
-                                        }).catch(err => {
-                                         res.json(err)
-                                        })
-                                }).catch(err => {
-                                    res.json(err)
-                                })
-                        })
-                        .catch(err => {
-                            res.json(err)
-                        })
-                }
-                else {
-                    res.json({
-                        message: "Account Deactivated",
-                    })
-                }
-
-
-
-            } else {
-                    res.send("Insuffient Fund")
-                } 
-            }
-            else {
-                res.json({message : "invalid AccountNumber"})
-            }
-         
             
-        }) 
-        .catch ((err) => {
-             res.json({message:"invalid AccountNumber"})       
-        })
-})
-
-router.post("/refund", (req, res) => { 
-    const { accountnumber, transactionId} = req.body
-
-    Transfer.find({ "TransactionId" : { $in : [ transactionId ] } })
-        .then((trxid) => {
-         const AcctIsValid  = trxid[0].AccountNumberSender == accountnumber 
-            if (AcctIsValid) {
-            Wallet.find({ "AccountNumber" : { $in : [ trxid[0].AccountNumberSender, trxid[0].AccountNumberReceiver ] } })
-           .then((wallet) => {
+        try {
+                            
+            const session = await mongoose.startSession();
+            session.withTransaction(async () => {
+                
+                const wallet = await Wallet.find({ "AccountNumber": { $in: [accountnumber, receiveraccountnumber] } })
+                if (wallet.length === 2) {
                 const walletItem = wallet[0]
                 const receiverWallet = wallet[1]
-                if (walletItem.AccountNumber == accountnumber && walletItem.AccountStatus == "Active") {
-                          const filter = { TransactionId: transactionId};
-                          const updateItem = {
-                                
-                            Description: "Refunded"
-                            };
-                            Transfer.findOneAndUpdate(filter, updateItem, {
-                                new: true
-                            })
-                           .then(transaction => {
-                            const filter = { AccountNumber: accountnumber };
-                            const updateItem = {
-                                AccountBalance: transaction.AccountBalance + transaction.Amount
-                            };
-                            Wallet.findOneAndUpdate(filter, updateItem, {
-                                new: true
-                            })
-                                .then(() => {
-                                  
-                                    const filter = { AccountNumber: transaction.AccountNumberReceiver };
-                                    const updateItem = {
-                                    AccountBalance: receiverWallet.AccountBalance - transaction.Amount
-                                    };
-                                    Wallet.findOneAndUpdate(filter, updateItem, {
-                                    new: true
-                                    })
-                                    .then(() => {res.json({Message : 'Transfer Refunded' })})
-                                })
-                        })
-                        .catch(() => {
-                            res.json("Refund failed")
-                        })
-                }
-                else {
-                    res.json({
-                        message: "Account Deactivated",
-                    })
-                }
-        }) 
-        .catch (() => {
-             res.json({message:"Account Not Found"})       
+    
+                    const money = parseInt(amount)
+                    
+        if (money <= walletItem.AccountBalance) {
+            if (walletItem.AccountNumber == accountnumber && walletItem.AccountStatus == "Active") {
+            if (receiverWallet.AccountNumber == accountnumber && receiverWallet.AccountStatus == "Active") {
+        const transaction = new Transfer({
+            TransactionId: makeTransactionId(10),
+            AccountNumberSender: accountnumber,
+            AccountNumberReceiver: receiveraccountnumber,
+            Name: name,
+            Amount: money,
+            AccountBalance: walletItem.AccountBalance - money,
+            Description: "Debit"
         })
-                 } 
-        else {
-            res.json({message : "Account Number is not valid"})  
+        const transact = transaction.save({ session }) 
+        const filter = { AccountNumber: accountnumber };
+        const updateItem = { AccountBalance: transact.AccountBalance };
+        await Wallet.findOneAndUpdate(filter, updateItem, { new: true, session })
+        const filterCredit = { AccountNumber: receiveraccountnumber };
+        const updateItemCredit = { AccountBalance: receiverWallet.AccountBalance + money };
+        await Wallet.findOneAndUpdate(filterCredit, updateItemCredit, { new: true, session })
+        res.status(200).json({
+            message: "Transfer Successful",
+            transaction: transact
+        })
+                    await session.commitTransaction();
+            }
+                
+                else { res.status(400).json({ message: "Incorrect Receiver's Account Number or Deactivated" }) }
         }
-        }) 
-        .catch (() => {
-             res.json({message:"Invalid TransactionID"})       
-        })
+            else { res.status(400).json({ message: "Your Account Number is Incorrect or Deactivated" }) }
+        }
+        else { res.status(400).send("Insuffient Fund") }
+    }
+    else { res.status(400).json({ message: "invalid AccountNumber" }) }         
+                })
+                await session.endSession();    
+    }
+                catch (err) {
+                    console.log(err)
+                }
+                    
+                
+} catch (err) {
+res.status(400).json({
+    message: "Transfer Unsuccessful",
+    transaction: err
+})
+
+}
+ 
+})
+
+router.post("/refund", async(req, res) => { 
+try {
+    const { accountnumber, transactionId} = req.body
+
+    const trxid = await Transfer.find({ "TransactionId": { $in: [transactionId] } })
+    const AcctIsValid = trxid[0].AccountNumberSender == accountnumber
+    try {
+       if (AcctIsValid ) { 
+      const wallet = await Wallet.find({ "AccountNumber" : { $in : [ trxid[0].AccountNumberSender, trxid[0].AccountNumberReceiver ] } })
+        const walletItem = wallet[0]
+           const receiverWallet = wallet[1]
+           console.log(walletItem , receiverWallet)
+           if (wallet == receiverWallet) {
+               return res.json({message:"You be thief"}) 
+           }
+        if (walletItem.AccountNumber == accountnumber && walletItem.AccountStatus == "Active") { 
+            try {
+              const session = await mongoose.startSession();
+                await session.withTransaction(async () => { 
+                 const filterTranscation = { TransactionId: transactionId};
+                    const updateItemTranscation = { Description: "Refunded" };
+
+                    const refundTransaction = await Transfer.findOneAndUpdate(filterTranscation, updateItemTranscation, { new: true })
+
+                    const filterAccountNumber = { AccountNumber: accountnumber };
+                    const updateItemAccountBalance = { AccountBalance: refundTransaction.AccountBalance + transaction.Amount };
+
+                    const transaction = await Wallet.findOneAndUpdate(filterAccountNumber, updateItemAccountBalance, { new: true })
+
+                    const filterReceiverAccount = { AccountNumber: transaction.AccountNumberReceiver };
+                    const updateItemReceiverAccount = {AccountBalance: receiverWallet.AccountBalance - transaction.Amount};
+                    await Wallet.findOneAndUpdate(filterReceiverAccount, updateItemReceiverAccount, { new: true })
+                    res.status(200).json({
+                        Message: 'Transfer Refunded',
+                        transction: transaction,
+                        account: refundTransaction
+                    })
+                })
+            }
+            catch (err) { res.status(400).json("Refund failed") }   
+        }
+         else {res.status(400).json({message: "Account Deactivated"})}
+    }
+     else {
+            res.status(400).json({message : "Account Number is not valid"})  
+        } 
+
+    }
+    catch {
+        res.status(400).json({message:"Account Not Found"})   
+    }
+    
+    }
+catch {
+     res.status(400).json({message:"Invalid TransactionID"})
+     }
 })
 
 

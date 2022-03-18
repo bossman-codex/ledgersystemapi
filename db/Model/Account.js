@@ -1,6 +1,6 @@
 const mongoose = require("mongoose")
 
-const AccountSchema = mongoose.Schema({
+const accountSchema = mongoose.Schema({
     AccountNumber: {
         type: String,
         unique:true
@@ -30,4 +30,4 @@ const AccountSchema = mongoose.Schema({
       
 })
 
-module.exports = mongoose.model("Wallet" , AccountSchema)
+module.exports = mongoose.model("Wallet" , accountSchema)

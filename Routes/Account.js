@@ -12,7 +12,6 @@ router.get("/balance", async(req, res) => {
         return res.json({message : 'AccountNumber MISSING!!' })
     }
         const wallet = await Wallet.find({ AccountNumber: accountNumber }).select('AccountBalance')
-        console.log(wallet)
         res.json({ Message: `Your Current Balance is ${formatToCurrency(wallet[0].AccountBalance)}` })  
 
         

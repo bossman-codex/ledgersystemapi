@@ -1,21 +1,21 @@
 const express = require("express")
 const mongoose = require("mongoose")
-const BodyParser = require("body-parser")
-const Account = require("./Routes/Account")
-const Transaction = require("./Routes/Transaction")
+const bodyparser = require("body-parser")
+const account = require("./Routes/Account")
+const transaction = require("./Routes/Transaction")
 
 require("dotenv/config")
 
 const app = express()
-app.use(BodyParser.json())
+app.use(bodyparser.json())
 
 app.get("/", (req, res) => {
     res.send("Welcome to Wallet")
 })
 
-app.use("/Account", Account)
+app.use("/account", account)
 
-app.use("/Transaction" , Transaction)
+app.use("/transaction" , transaction)
 
 
 app.on('ready', function() { 
@@ -25,29 +25,13 @@ app.on('ready', function() {
 });
 
 mongoose.connect(process.env.DB, {
-    useNewUrlParser: true,
-    useUnifiedTopology:true
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
+        retryWrites: false
 })
 
-mongoose.connection.once('open', function() { 
-    // All OK - fire (emit) a ready event. 
+mongoose.connection.once('open', function() {  
     app.emit('ready'); 
-}); 
-
-mongoose.connection.on('connected', () => {
-    console.log("mongoose connected")
-})
-
-// If the connection throws an error
-mongoose.connection.on('error',function (err) {  
-  console.log('Mongoose default connection error: ' + err);
-}); 
-
-// When the connection is disconnected
-mongoose.connection.on('disconnected', function () {  
-  console.log('Mongoose default connection disconnected'); 
-});
-
-
+});  
 
 module.exports = app

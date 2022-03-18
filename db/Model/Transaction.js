@@ -1,6 +1,6 @@
 const mongoose = require("mongoose")
 
-const TransactionSchema = mongoose.Schema({
+const transactionschema = mongoose.Schema({
 
     TransactionId: {
         type: String,
@@ -32,4 +32,4 @@ const TransactionSchema = mongoose.Schema({
       
 })
 
-module.exports = mongoose.model("Transaction" , TransactionSchema)
+module.exports = mongoose.model("Transaction" , transactionschema)
